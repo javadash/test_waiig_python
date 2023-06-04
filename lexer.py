@@ -31,7 +31,7 @@ class TokenType(Enum):
     RPAREN = ")"
     LBRACE = "{"
     RBRACE = "}"
-    # LBRACKET = "["
+    LBRACKET = "["
     # RBRACKET = "]"
     # COLON = ":"
 
