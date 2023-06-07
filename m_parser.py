@@ -86,6 +86,9 @@ class MParser:
         self._register_prefix(TokenType.MINUS, self._parse_prefix_expression)
         self._register_prefix(TokenType.TRUE, self._parse_boolean)
         self._register_prefix(TokenType.FALSE, self._parse_boolean)
+        self._register_prefix(TokenType.LPAREN, self._parse_group_expression)
+        self._register_prefix(TokenType.IF, self._parse_if_expression)
+        self._register_prefix(TokenType.FUNCTION, self._parse_function_literal)
         
 
 
@@ -97,6 +100,7 @@ class MParser:
         self._register_infix(TokenType.NOT_EQ, self._parse_infix_expression)
         self._register_infix(TokenType.LT, self._parse_infix_expression)
         self._register_infix(TokenType.GT, self._parse_infix_expression)
+        self._register_infix(TokenType.LPAREN, self._parse_call_expression)
 
     
     def _register_prefix(self, type_: TokenType, function: PrefixParseFn) -> None:
@@ -173,16 +177,16 @@ class MParser:
         if value is None:
             return None
         
-        # if self._peek_token_is(TokenType.SEMICOLON):
-        #     self._next_token()
+        if self._peek_token_is(TokenType.SEMICOLON):
+            self._next_token()
 
-        # TODO we are skipping all the expressions until we encounter a semicolon
-        while not self._current_token_is(TokenType.SEMICOLON):
-            if self._peek_token_is(TokenType.EOF):
-                self._peek_error(TokenType.SEMICOLON)
-                return None
-            else:
-                self._next_token()
+        # # TODO we are skipping all the expressions until we encounter a semicolon
+        # while not self._current_token_is(TokenType.SEMICOLON):
+        #     if self._peek_token_is(TokenType.EOF):
+        #         self._peek_error(TokenType.SEMICOLON)
+        #         return None
+        #     else:
+        #         self._next_token()
 
         return ast.LetStatement(token, name, value)
 
@@ -210,10 +214,8 @@ class MParser:
         return_value = self._parse_expression(PrecedenceLevel.LOWEST)
         if return_value is None:
             return None
-        # if self._peek_token_is(TokenType.SEMICOLON):
-        #     self._next_token()
-
-        while not self._current_token_is(TokenType.SEMICOLON):
+        
+        if self._peek_token_is(TokenType.SEMICOLON):
             self._next_token()
 
         return ast.ReturnStatement(token, return_value)
@@ -311,3 +313,103 @@ class MParser:
         if self._current_token is None:
             return None
         return ast.Boolean(self._current_token, self._current_token_is(TokenType.TRUE))
+
+    def _parse_group_expression(self) -> Optional[ast.Expression]:
+        self._next_token()
+        expr = self._parse_expression(PrecedenceLevel.LOWEST)
+        if not self._expect_peek(TokenType.RPAREN):
+            return None
+        return expr
+    
+    def _parse_if_expression(self) -> Optional[ast.Expression]:
+        token = self._current_token
+        if not self._expect_peek(TokenType.LPAREN):
+            return None
+
+        self._next_token()
+        condition = self._parse_expression(PrecedenceLevel.LOWEST)
+        if condition is None:
+            return None
+        if not self._expect_peek(TokenType.RPAREN):
+            return None
+        if not self._expect_peek(TokenType.LBRACE):
+            return None
+        consequence = self._parse_block_statement()
+        alternative = None
+        if self._peek_token_is(TokenType.ELSE):
+            self._next_token()
+            if not self._expect_peek(TokenType.LBRACE):
+                return None
+            alternative = self._parse_block_statement()
+        
+        return ast.IfExpression(token, condition, consequence, alternative)
+
+    def _parse_block_statement(self) -> ast.BlockStatement:
+        token = self._current_token
+        statements = []
+        self._next_token()
+        while not self._current_token_is(TokenType.RBRACE):
+            stmt = self._parse_statement()
+            if stmt is not None:
+                statements.append(stmt)
+            self._next_token()
+        return ast.BlockStatement(token, statements)
+
+    def _parse_function_literal(self) -> Optional[ast.FunctionLiteral]:
+        token = self._current_token
+        if not self._expect_peek(TokenType.LPAREN):
+            return None
+        parameters = self._parse_function_parameters()
+        if parameters is None:
+            return None
+        if not self._expect_peek(TokenType.LBRACE):
+            return None
+        body = self._parse_block_statement()
+        return ast.FunctionLiteral(token, parameters, body)
+    
+    def _parse_function_parameters(self) -> Optional[List[ast.Identifier]]:
+        identifiers: List[ast.Identifier] = []
+        if self._peek_token_is(TokenType.RPAREN):
+            self._next_token()
+            return identifiers
+        self._next_token()
+        ident = ast.Identifier(self._current_token,
+                               self._current_token.literal)
+        identifiers.append(ident)
+        while self._peek_token_is(TokenType.COMMA):
+            self._next_token()
+            self._next_token()
+            ident = ast.Identifier(self._current_token,
+                                   self._current_token.literal)
+            identifiers.append(ident)
+        if not self._expect_peek(TokenType.RPAREN):
+            return None
+        return identifiers
+
+    def _parse_call_expression(self, function: ast.Expression) -> Optional[ast.CallExpression]:
+        token = self._current_token
+        arguments = self._parse_call_arguments()
+        if arguments is None:
+            return None
+        return ast.CallExpression(token, function, arguments)
+    
+    def _parse_call_arguments(self) -> Optional[List[ast.Expression]]:
+        args: List[ast.Expression] = []
+        if self._peek_token_is(TokenType.RPAREN):
+            self._next_token()
+            return args
+        self._next_token()
+        expr = self._parse_expression(PrecedenceLevel.LOWEST)
+        if expr is None:
+            return None
+        args.append(expr)
+        while self._peek_token_is(TokenType.COMMA):
+            self._next_token()
+            self._next_token()
+            expr = self._parse_expression(PrecedenceLevel.LOWEST)
+            if expr is None:
+                return None
+            args.append(expr)
+        if not self._expect_peek(TokenType.RPAREN):
+            return None
+        return args

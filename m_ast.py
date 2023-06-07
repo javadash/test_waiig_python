@@ -169,3 +169,13 @@ class FunctionLiteral(Expression):
     def string(self) -> str:
         params = map(lambda p: p.string(), self.parameters)
         return f"{self.token_literal()}({', '.join(params)}) {self.body.string()}"
+
+class CallExpression(Expression):
+    def __init__(self, token: Token, function: Expression, arguments: List[Expression]) -> None:
+        super(CallExpression, self).__init__(token)
+        self.function = function
+        self.arguments = arguments or []
+
+    def string(self) -> str:
+        args = map(lambda a: a.string(), self.arguments)
+        return f"{self.function.string()}({', '.join(args)})"
