@@ -89,6 +89,9 @@ class MParser:
         self._register_prefix(TokenType.LPAREN, self._parse_group_expression)
         self._register_prefix(TokenType.IF, self._parse_if_expression)
         self._register_prefix(TokenType.FUNCTION, self._parse_function_literal)
+        self._register_prefix(TokenType.STRING, self._parse_string_literal)
+        self._register_prefix(TokenType.LBRACKET, self._parse_array_literal)
+        self._register_prefix(TokenType.LBRACE, self._parse_hash_literal)
         
 
 
@@ -101,6 +104,7 @@ class MParser:
         self._register_infix(TokenType.LT, self._parse_infix_expression)
         self._register_infix(TokenType.GT, self._parse_infix_expression)
         self._register_infix(TokenType.LPAREN, self._parse_call_expression)
+        self._register_infix(TokenType.LBRACKET, self._parse_index_expression)
 
     
     def _register_prefix(self, type_: TokenType, function: PrefixParseFn) -> None:
@@ -388,7 +392,7 @@ class MParser:
 
     def _parse_call_expression(self, function: ast.Expression) -> Optional[ast.CallExpression]:
         token = self._current_token
-        arguments = self._parse_call_arguments()
+        arguments = self._parse_expression_list(TokenType.RPAREN)
         if arguments is None:
             return None
         return ast.CallExpression(token, function, arguments)
@@ -413,3 +417,65 @@ class MParser:
         if not self._expect_peek(TokenType.RPAREN):
             return None
         return args
+    
+    # Similar to _parse_function_parameters() except it's more general and
+    # returns a list of expression rather than a list of identifiers.
+    def _parse_expression_list(self, end: TokenType) -> Optional[List[ast.Expression]]:
+        list_: List[ast.Expression] = []
+        if self._peek_token_is(end):
+            self._next_token()
+            return list_
+        self._next_token()
+        expr = self._parse_expression(PrecedenceLevel.LOWEST)
+        if expr is None:
+            return None
+        list_.append(expr)
+        while self._peek_token_is(TokenType.COMMA):
+            self._next_token()
+            self._next_token()
+            expr = self._parse_expression(PrecedenceLevel.LOWEST)
+            if expr is None:
+                return None
+            list_.append(expr)
+        if not self._expect_peek(end):
+            return None
+        return list_
+
+    def _parse_string_literal(self) -> Optional[ast.StringLiteral]:
+        return ast.StringLiteral(self._current_token, self._current_token.literal)
+    
+    def _parse_array_literal(self) -> Optional[ast.ArrayLiteral]:
+        token = self._current_token
+        elements = self._parse_expression_list(TokenType.RBRACKET)
+        return ast.ArrayLiteral(token, elements)
+    
+    def _parse_index_expression(self, left: ast.Expression) -> Optional[ast.IndexExpression]:
+        token = self._current_token
+        self._next_token()
+        index = self._parse_expression(PrecedenceLevel.LOWEST)
+        if index is None:
+            return None
+        if not self._expect_peek(TokenType.RBRACKET):
+            return None
+        return ast.IndexExpression(token, left, index)
+    
+    def _parse_hash_literal(self) -> Optional[ast.HashLiteral]:
+        token = self._current_token
+        pairs: Dict[ast.Expression, ast.Expression] = {}
+        while not self._peek_token_is(TokenType.RBRACE):
+            self._next_token()
+            key = self._parse_expression(PrecedenceLevel.LOWEST)
+            if key is None:
+                return None
+            if not self._expect_peek(TokenType.COLON):
+                return None
+            self._next_token()
+            value = self._parse_expression(PrecedenceLevel.LOWEST)
+            if value is None:
+                return None
+            pairs[key] = value
+            if not self._peek_token_is(TokenType.RBRACE) and not self._expect_peek(TokenType.COMMA):
+                return None
+        if not self._expect_peek(TokenType.RBRACE):
+            return None
+        return ast.HashLiteral(token, pairs)

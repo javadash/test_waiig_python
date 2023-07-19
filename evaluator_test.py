@@ -196,3 +196,93 @@ class EvaluatorTest(unittest.TestCase):
         for test in tests:
             self._test_integer_object(
                 self._test_eval(test.source), test.expected)
+
+    def test_closures(self) -> None:
+        source = """let newAdder = fn(x) {
+                     fn(y) { x + y };
+                    };
+                    let addTwo = newAdder(2);
+                    addTwo(2);"""
+        self._test_integer_object(self._test_eval(source), 4)
+
+    def test_string_literal(self) -> None:
+        source = '"Hello World!"'
+        evaluated = cast(monkey_object.String, self._test_eval(source))
+        self.assertIsInstance(evaluated, monkey_object.String)
+        self.assertEqual(evaluated.value, "Hello World!")
+
+    def test_string_concatenation(self) -> None:
+        source = '"Hello" + " " + "World!"'
+        evaluated = cast(monkey_object.String, self._test_eval(source))
+        self.assertIsInstance(evaluated, monkey_object.String)
+        self.assertEqual(evaluated.value, "Hello World!")
+
+    def test_array_literals(self) -> None:
+        source = "[1, 2 * 2, 3 + 3]"
+        evaluated = cast(monkey_object.Array, self._test_eval(source))
+        self.assertIsInstance(evaluated, monkey_object.Array)
+        self.assertEqual(len(evaluated.elements), 3)
+        self._test_integer_object(evaluated.elements[0], 1)
+        self._test_integer_object(evaluated.elements[1], 4)
+        self._test_integer_object(evaluated.elements[2], 6)
+
+    def test_array_index_expressions(self) -> None:
+        tests = [
+            Case("[1, 2, 3][0]", 1),
+            Case("[1, 2, 3][1]", 2),
+            Case("[1, 2, 3][2]", 3),
+            Case("let i = 0; [1][i];", 1),
+            Case("[1, 2, 3][1 + 1];", 3),
+            Case("let myArray = [1, 2, 3]; myArray[2];", 3),
+            Case("let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                 6),
+            Case("let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", 2),
+            Case("[1, 2, 3][3]", None),
+            Case("[1, 2, 3][-1]", None)]
+        for test in tests:
+            evaluated = self._test_eval(test.source)
+            if isinstance(test.expected, int):
+                self._test_integer_object(evaluated, test.expected)
+            else:
+                self._test_null_object(evaluated)
+
+    def test_hash_literals(self) -> None:
+        source = """let two = "two";
+                    {
+                      "one": 10 - 9,
+                      two: 1 + 1,
+                      "thr" + "ee": 6 / 2,
+                      4: 4,
+                      true: 5,
+                      false: 6
+                    }"""
+        evaluated = cast(monkey_object.Hash, self._test_eval(source))
+        self.assertIsInstance(evaluated, monkey_object.Hash)
+        expected: Dict[monkey_object.HashKey, int] = {
+            monkey_object.String("one").hash_key(): 1,
+            monkey_object.String("two").hash_key(): 2,
+            monkey_object.String("three").hash_key(): 3,
+            monkey_object.Integer(4).hash_key(): 4,
+            Evaluator.true.hash_key(): 5,
+            Evaluator.false.hash_key(): 6
+        }
+        self.assertEqual(len(evaluated.pairs), len(expected))
+        for key, value in expected.items():
+            pair = evaluated.pairs[key]
+            self._test_integer_object(pair.value, value)
+    
+    def test_hash_index_expressions(self) -> None:
+        tests = [
+            Case('{"foo": 5}["foo"]', 5),
+            Case('{"foo": 5}["bar"]', None),
+            Case('let key = "foo"; {"foo": 5}[key]', 5),
+            Case('{}["foo"]', None),
+            Case('{5: 5}[5]', 5),
+            Case('{true: 5}[true]', 5),
+            Case('{false: 5}[false]', 5)]
+        for test in tests:
+            evaluated = self._test_eval(test.source)
+            if isinstance(test.expected, int):
+                self._test_integer_object(evaluated, test.expected)
+            else:
+                self._test_null_object(evaluated)

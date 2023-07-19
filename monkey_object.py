@@ -22,6 +22,10 @@ class ObjectType(Enum):
     RETURN_VALUE = "RETURN_VALUE"
     ERROR = "ERROR"
     FUNCTION = "FUNCTION"
+    STRING = "STRING"
+    BUILTIN = "BUILTIN"
+    ARRAY = "ARRAY"
+    HASH = "HASH"
 
 
 # Classes in Python have reference semantics which makes any two HashKeys
@@ -30,10 +34,10 @@ class ObjectType(Enum):
 HashKey = namedtuple("HashKey", ["type", "value"])
 
 
-# class Hashable:
-#     @abstractclassmethod
-#     def hash_key(cls) -> HashKey:
-#         raise NotImplementedError
+class Hashable:
+    @abstractclassmethod
+    def hash_key(cls) -> HashKey:
+        raise NotImplementedError
 
 
 class MonkeyObject:
@@ -46,7 +50,7 @@ class MonkeyObject:
         raise NotImplementedError
 
 
-class Integer(MonkeyObject):
+class Integer(MonkeyObject, Hashable):
     def __init__(self, value: int) -> None:
         self.value = value
 
@@ -55,9 +59,12 @@ class Integer(MonkeyObject):
 
     def inspect(self) -> str:
         return str(self.value)
+
+    def hash_key(self) -> HashKey:
+        return HashKey(self.type_(), self.value)
     
 
-class Boolean(MonkeyObject):
+class Boolean(MonkeyObject, Hashable):
     def __init__(self, value: bool) -> None:
         self.value = value
 
@@ -68,6 +75,10 @@ class Boolean(MonkeyObject):
         # Python's boolean literals are True and False where Monkey's are true
         # and false
         return "true" if self.value else "false"
+    
+    def hash_key(self) -> HashKey:
+        value = 1 if self.value == 1 else 0
+        return HashKey(self.type_(), value)
 
 class Null(MonkeyObject):
     # Null is a type like Integer and Boolean except it doesn't wrap a value. It
@@ -128,3 +139,57 @@ class Function(MonkeyObject):
     def inspect(self) -> str:
         params = map(lambda p: p.string(), self.parameters)
         return f"fn({', '.join(params)}) {{\n{self.body.string()}\n}}"
+
+class String(MonkeyObject, Hashable):
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def type_(self) -> ObjectType:
+        return ObjectType.STRING
+
+    def inspect(self) -> str:
+        return str(self.value)
+
+    def hash_key(self) -> HashKey:
+        return HashKey(self.type_(), int(hashlib.md5(self.value.encode("utf-8")).hexdigest(), 16))
+
+class Builtin(MonkeyObject):
+    def __init__(self, function: Callable[[List[MonkeyObject]], MonkeyObject]) -> None:
+        self.function = function
+
+    def type_(self) -> ObjectType:
+        return ObjectType.BUILTIN
+
+    def inspect(self) -> str:
+        return "builtin function"
+
+class Array(MonkeyObject):
+    def __init__(self, elements: List[MonkeyObject]) -> None:
+        self.elements = elements
+
+    def type_(self) -> ObjectType:
+        return ObjectType.ARRAY
+
+    def inspect(self) -> str:
+        elements = map(lambda e: e.inspect(), self.elements)
+        return f"[{', '.join(elements)}]"
+
+class HashPair:
+    def __init__(self, key: MonkeyObject, value: MonkeyObject) -> None:
+        self.key = key
+        self.value = value
+
+
+class Hash(MonkeyObject):
+    def __init__(self, pairs: Dict[HashKey, HashPair]) -> None:
+        self.pairs = pairs
+
+    def type_(self) -> ObjectType:
+        return ObjectType.HASH
+
+    def inspect(self) -> str:
+        pairs = []
+        for _, pair in self.pairs.items():
+            pairs.append(f"{pair.key.inspect()}: {pair.value.inspect()}")
+        return f"{{{', '.join(pairs)}}}"
+

@@ -24,6 +24,10 @@ class LexerTest(unittest.TestCase):
 
                     10 == 10;
                     10 != 9;
+                    "foobar"
+                    "foo bar"
+                    [1, 2];
+                    {"foo": "bar"}
                     """
         Case = namedtuple(
             "Case", ["expected_token_type", "expected_token_literal"])
@@ -101,6 +105,19 @@ class LexerTest(unittest.TestCase):
             Case(TokenType.NOT_EQ, "!="),
             Case(TokenType.INT, "9"),
             Case(TokenType.SEMICOLON, ";"),
+            Case(TokenType.STRING, "foobar"),
+            Case(TokenType.STRING, "foo bar"),
+            Case(TokenType.LBRACKET, "["),
+            Case(TokenType.INT, "1"),
+            Case(TokenType.COMMA, ","),
+            Case(TokenType.INT, "2"),
+            Case(TokenType.RBRACKET, "]"),
+            Case(TokenType.SEMICOLON, ";"),
+            Case(TokenType.LBRACE, "{"),
+            Case(TokenType.STRING, "foo"),
+            Case(TokenType.COLON, ":"),
+            Case(TokenType.STRING, "bar"),
+            Case(TokenType.RBRACE, "}"),
             Case(TokenType.EOF, "")]
 
         lexer = Lexer(source)

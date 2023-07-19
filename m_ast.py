@@ -179,3 +179,40 @@ class CallExpression(Expression):
     def string(self) -> str:
         args = map(lambda a: a.string(), self.arguments)
         return f"{self.function.string()}({', '.join(args)})"
+    
+class StringLiteral(Expression):
+    def __init__(self, token: Token, value: str) -> None:
+        super(StringLiteral, self).__init__(token)
+        self.value = value
+
+
+class ArrayLiteral(Expression):
+    def __init__(self, token: Token, elements: List[Expression]) -> None:
+        super(ArrayLiteral, self).__init__(token)
+        self.elements = elements
+
+    def string(self) -> str:
+        elements = map(lambda e: e.string(), self.elements)
+        return f"[{', '.join(elements)}]"
+
+
+class IndexExpression(Expression):
+    def __init__(self, token: Token, left: Expression, index: Expression) -> None:
+        super(IndexExpression, self).__init__(token)
+        self.left = left
+        self.index = index
+
+    def string(self) -> str:
+        return f"({self.left.string()}[{self.index.string()}])"
+
+
+class HashLiteral(Expression):
+    def __init__(self, token: Token, pairs: Dict[Expression, Expression]) -> None:
+        super(HashLiteral, self).__init__(token)
+        self.pairs = pairs
+
+    def string(self) -> str:
+        pairs = []
+        for key, value in self.pairs.items():
+            pairs.append(f"{key.string()}: {value.string()}")
+        return f"{{{', '.join(pairs)}}}"

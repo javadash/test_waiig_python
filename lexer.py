@@ -10,7 +10,7 @@ class TokenType(Enum):
     # Identifiers and literals
     IDENT = "IDENT"      # add, foobar, x, y
     INT = "INT"          # 123
-    # STRING = "STRING"    # "foo"
+    STRING = "STRING"    # "foo"
 
     # Operators
     ASSIGN = "="
@@ -103,14 +103,14 @@ class Lexer:
             tok = Token(TokenType.LBRACE, self._char)
         elif self._char == "}":
             tok = Token(TokenType.RBRACE, self._char)
-        # elif self._char == "[":
-        #     tok = Token(TokenType.LBRACKET, self._char)
-        # elif self._char == "]":
-        #     tok = Token(TokenType.RBRACKET, self._char)
-        # elif self._char == ":":
-        #     tok = Token(TokenType.COLON, self._char)
-        # elif self._char == '"':
-        #     tok = Token(TokenType.STRING, self._read_string())
+        elif self._char == "[":
+            tok = Token(TokenType.LBRACKET, self._char)
+        elif self._char == "]":
+            tok = Token(TokenType.RBRACKET, self._char)
+        elif self._char == ":":
+            tok = Token(TokenType.COLON, self._char)
+        elif self._char == '"':
+            tok = Token(TokenType.STRING, self._read_string())
         elif self._char == "\0":
             tok = Token(TokenType.EOF, "")
         else:

@@ -217,10 +217,10 @@ class ParserTests(unittest.TestCase):
                  "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"),
             Case("add(a + b + c * d / f + g)",
                  "add((((a + b) + ((c * d) / f)) + g))"),
-            # Case("a * [1, 2, 3, 4][b * c] * d",
-            #      "((a * ([1, 2, 3, 4][(b * c)])) * d)"),
-            # Case("add(a * b[2], b[1], 2 * [1, 2][1])",
-            #      "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))")
+            Case("a * [1, 2, 3, 4][b * c] * d",
+                 "((a * ([1, 2, 3, 4][(b * c)])) * d)"),
+            Case("add(a * b[2], b[1], 2 * [1, 2][1])",
+                 "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))")
                  
                  ]
 
@@ -360,3 +360,78 @@ class ParserTests(unittest.TestCase):
             self.assertEqual(len(expr.arguments), len(test.expected_args))
             for i, arg in enumerate(test.expected_args):
                 self.assertEqual(arg, test.expected_args[i])
+
+    def test_string_literal_expression(self) -> None:
+        source = '"Hello world"'
+        program = self._setup_program(source)
+        stmt = cast(ast.ExpressionStatement, program.statements[0])
+        self.assertIsInstance(stmt, ast.ExpressionStatement)
+        literal = cast(ast.StringLiteral, stmt.expression)
+        self.assertIsInstance(literal, ast.StringLiteral)
+        self.assertEqual(literal.value, "Hello world")
+    
+    def test_parsing_array_literals(self) -> None:
+        source = "[1, 2 * 2, 3 + 3]"
+        program = self._setup_program(source)
+        stmt = cast(ast.ExpressionStatement, program.statements[0])
+        self.assertIsInstance(stmt, ast.ExpressionStatement)
+        array = cast(ast.ArrayLiteral, stmt.expression)
+        self.assertIsInstance(array, ast.ArrayLiteral)
+        self.assertEqual(len(array.elements), 3)
+        self._test_integer_literal(array.elements[0], 1)
+        self._test_infix_expression(array.elements[1], 2, "*", 2)
+        self._test_infix_expression(array.elements[2], 3, "+", 3)
+
+    def test_parsing_index_expression(self) -> None:
+        source = "myArray[1 + 1]"
+        program = self._setup_program(source)
+        stmt = cast(ast.ExpressionStatement, program.statements[0])
+        self.assertIsInstance(stmt, ast.ExpressionStatement)
+        index_expr = cast(ast.IndexExpression, stmt.expression)
+        self.assertIsInstance(index_expr, ast.IndexExpression)
+        self._test_identifier(index_expr.left, "myArray")
+        self._test_infix_expression(index_expr.index, 1, "+", 1)
+
+    def test_parsing_hash_literals_string_keys(self) -> None:
+        source = '{"one": 1, "two": 2, "three": 3}'
+        program = self._setup_program(source)
+        stmt = cast(ast.ExpressionStatement, program.statements[0])
+        self.assertIsInstance(stmt, ast.ExpressionStatement)
+        hash_literal = cast(ast.HashLiteral, stmt.expression)
+        self.assertIsInstance(hash_literal, ast.HashLiteral)
+        self.assertEqual(len(hash_literal.pairs), 3)
+        expected = {
+            "one": 1,
+            "two": 2,
+            "three": 3
+        }
+        for key, value in hash_literal.pairs.items():
+            self.assertIsInstance(key, ast.StringLiteral)
+            expected_value = expected[key.string()]
+            self._test_integer_literal(value, expected_value)
+
+    def test_parsing_empty_hash_literal(self) -> None:
+        source = "{}"
+        program = self._setup_program(source)
+        stmt = cast(ast.ExpressionStatement, program.statements[0])
+        self.assertIsInstance(stmt, ast.ExpressionStatement)
+        hash_literal = cast(ast.HashLiteral, stmt.expression)
+        self.assertIsInstance(hash_literal, ast.HashLiteral)
+        self.assertEqual(len(hash_literal.pairs), 0)
+
+    def test_parsing_hash_literals_with_expressions(self) -> None:
+        source = '{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}'
+        program = self._setup_program(source)
+        stmt = cast(ast.ExpressionStatement, program.statements[0])
+        self.assertIsInstance(stmt, ast.ExpressionStatement)
+        hash_literal = cast(ast.HashLiteral, stmt.expression)
+        self.assertIsInstance(hash_literal, ast.HashLiteral)
+        self.assertEqual(len(hash_literal.pairs), 3)
+        expected = {
+            "one": lambda e: self._test_infix_expression(e, 0, "+", 1),
+            "two": lambda e: self._test_infix_expression(e, 10, "-", 8),
+            "three": lambda e: self._test_infix_expression(e, 15, "/", 5)
+        }
+        for key, value in hash_literal.pairs.items():
+            self.assertIsInstance(key, ast.StringLiteral)
+            expected[key.string()](value)
